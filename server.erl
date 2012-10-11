@@ -63,30 +63,28 @@ dropmessage({Message,Number},S=#state{holdback_queue=HQ}) ->
   %% Sorted Insert in the List
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
   werkzeug:logging("NServer.log",NewMessage),
-  S#state{holdback_queue=NewHQ}.
+  update_queues(S#state{holdback_queue=NewHQ}).
+  
   
 
-%update_queues(S = #state{messages=Messages,delivery_queue = DQ, holdback_queue = HQ}, {Message,Number}}) -> 
-%    AllowedMessage=lists:max(DQ)+1,
-%    case lists:member(AllowedMessage, HQ) of
-%      true -> 
-%	%% Sorted List besser, damit out funzt
-%	{{value,Msg},NewHQ} = queue:out(Number),
-%	NewDQ = queue:in(Msg, DQ),
-%	Length = queue:len(DQ),  %% Length of the List
-%	if Length > 10 ->   %% MaxLength of DQ    
-%	  {{value,Msg}, Queue} = queue:out(NewDQ),
-%	  S#state
-%	    {holdback_queue=NewHQ,
-%	     delivery_queue=Queue,
-%	   );
-%	true ->
-%	  S#state
-%	    {holdback_queue=NewHQ,
-%	     delivery_queue=NewDQ,
-%	   )
-%      false -> 
-%    end.
+update_queues(S = #state{messages=Messages,delivery_queue = DQ, holdback_queue = HQ}, {Message,Number}}) -> 
+    {_,LastDeliveryID} = lists:last(DQ),
+    {_,FirstHoldbackID} = lists:first(HQ),
+    if LastDeliverID + 1 = FirstHoldbackID ->
+            FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ));
+        true -> FirstBlob=[]
+    end,
+    NewDQ=DQ++FirstBlob,
+   lists:sublist(List,length(List)-3+1,length(List)).
+    %% IN WORK!!!%%
+        
+
+getBlob({Message,Id},[]) -> [{Message,Id}];
+getBlob({Message,Id},[{LastMessage,LastId}|List]) when Id -LastId == ) -> [{Message,Id}|[{LastMessage,LastId}|List]];
+getBlob(_,Accu) -> Accu.
+
+
+
 timestamp() -> 
   {Mega, Secs, _} = now(),
   Timestamp = Mega*1000000 + Secs.
