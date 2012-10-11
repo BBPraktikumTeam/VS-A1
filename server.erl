@@ -8,6 +8,7 @@
 %Zeilennummer -> Nachricht
 %aktuelle Zeilennummer
 %Timeout
+%kommentar
 
 
 loop(S= #state{message_id=Id,delivery_queue=DQ}) ->
