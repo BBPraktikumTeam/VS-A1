@@ -29,7 +29,7 @@ loop(S= #state{message_id=Id,delivery_queue=DQ}) ->
 
 getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) -> 
   MsgId=getLastMsgId(Pid,S),
-  case lists:dropwhile(fun({_,X})-> X<=MsgId end,DQ) of
+  case lists:dropwhile(fun({_,X})-> X =< MsgId end,DQ) of
     [] ->
       Message="Keine neuen Nachrichten vorhanden;",
       Getall=true,
@@ -39,8 +39,9 @@ getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) ->
     [{Message,NewMsgId}|_] ->
       Getall = false
    end,
-   Pid ! {appendTimeStamp(Message,"Sendezeit"),Getall},
-   S#state{clients=orddict:store(Pid,{NewMsgId,timestamp()})}.
+   Pid ! {X = appendTimeStamp(Message,"Sendezeit"),Getall},
+   werkzeug:logging("NServer.log", X),
+   S#state{clients=orddict:store(Pid,{NewMsgId,timestamp()}, Clients)}.
 
 
 appendTimeStamp(Message,Type) ->
@@ -51,9 +52,10 @@ getLastMsgId(Pid,S=#state{clients = Clients}) ->
     %prüfen ob Client bereits bekannt:
   case orddict:find(Pid,Clients) of
       error ->
-	orddict:append(Pid,{1,timestamp()}, Clients);
-	1.
-      {ok,{MsgId,_}} -> MsgId.
+        orddict:append(Pid,{0,timestamp()}, Clients),
+        0;
+      {ok,{MsgId,_}} -> MsgId
+   end.
 
 dropmessage({Message,Number},S=#state{holdback_queue=HQ}) ->
   % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
