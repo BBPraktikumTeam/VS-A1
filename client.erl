@@ -6,6 +6,8 @@ init() ->
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
 	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
+	ClientPid=self(),
+	spawn(fun()->timer:kill_after(Lifetime*1000,ClientPid) end),
 	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	{ok, Sendeintervall} = werkzeug:get_config_value(sendeintervall, ConfigListe),
 	Hostname = net_adm:localhost(),
