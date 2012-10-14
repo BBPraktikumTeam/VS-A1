@@ -22,7 +22,9 @@ loop(S= #state{message_id=Id,delivery_queue=DQ}) ->
 		{getmsgid,Pid} -> 
 		  io:format("Send Id ~p~n",[Id]), 
 		  Pid ! {Id}, 
-		  loop(S#state{message_id=Id+1})
+		  loop(S#state{message_id=Id+1});
+		Any ->
+		  io:format("Sorry, I don't understand: ~s~n",[Any])
 	    end.
 
    
@@ -92,6 +94,8 @@ timestamp() ->
 init() -> 
 	{ok, ConfigListe} = file:consult("server.cfg"),
       	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
+	ServerPid=self(),
+	spawn(fun()->timer:kill_after(Lifetime*1000,ServerPid) end),
       	{ok, Clientlifetime} = werkzeug:get_config_value(clientlifetime, ConfigListe),
       	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	register(Servername,self()),
