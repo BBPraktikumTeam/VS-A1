@@ -59,3 +59,4 @@ minTwo(List) ->
 		{1} -> ?ZERO ++ List;
 		_ -> List
 	end.
+	
