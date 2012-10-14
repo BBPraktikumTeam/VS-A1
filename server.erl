@@ -1,7 +1,7 @@
 -module(server).
 -compile(export_all).
 -import(werkzeug).
--record(state, {clients,message_id,delivery_queue,holdback_queue}).
+-record(state, {clients,message_id,delivery_queue,holdback_queue,time_of_death,clientlifetime,dlqlimit,difftime}).
 
 %%Client -> erhaltene Nachricht
 %Client -> Letze Meldung
@@ -89,7 +89,15 @@ timestamp() ->
   Timestamp = Mega*1000000 + Secs.
 
 
-init() -> loop(#state{clients=orddict:new(),delivery_queue=[{"Nachricht1",1},{"Nachricht2",2}],message_id=1,holdback_queue=[]}).
+init() -> 
+	{ok, ConfigListe} = file:consult("server.cfg"),
+      	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
+      	{ok, Clientlifetime} = werkzeug:get_config_value(clientlifetime, ConfigListe),
+      	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
+	register(Servername,self()),
+	{ok, Dlqlimit} = werkzeug:get_config_value(dlqlimit, ConfigListe),
+	{ok, Difftime} = werkzeug:get_config_value(difftime, ConfigListe),
+	loop(#state{clients=orddict:new(),delivery_queue=[{"Nachricht1",1},{"Nachricht2",2}],message_id=1,holdback_queue=[],time_of_death=timestamp()+Lifetime,clientlifetime=Clientlifetime,dlqlimit=Dlqlimit,difftime=Difftime}).
 
 
 start() -> spawn(fun init/0).
