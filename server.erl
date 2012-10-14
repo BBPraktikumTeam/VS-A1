@@ -84,7 +84,6 @@ getBlob({Message,Id},[{LastMessage,LastId}|List]) when Id -LastId == 1 -> [{Mess
 getBlob(_,Accu) -> Accu.
 
 
-
 timestamp() -> 
   {Mega, Secs, _} = now(),
   Timestamp = Mega*1000000 + Secs.

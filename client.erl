@@ -15,15 +15,18 @@ init() ->
 start() -> spawn(fun init/0).
 
 loop(Servername,StartTime,Sendeintervall,MessageCounter,SendCounter) when SendCounter < 5 ->
-																	timer:send_after({0,0,Sendeintervall}, Servername, get_message()), 
+																	erlang:send_after(seconds_to_mseconds(Sendeintervall), Servername, get_message()),
+																	werkzeug:logging("client_1.log", werkzeug:timeMilliSecond() ),
+																	io:format("Sending ~p ~p Message~n", [SendCounter,Sendeintervall]),
 																	loop(Servername,StartTime,random_intervall(Sendeintervall), MessageCounter + 1, SendCounter + 1);
-loop(Servername,StartTime,Sendeintervall,MessageCounter,SendCounter) when SendCounter >= 5 -> [].
+loop(Servername,StartTime,Sendeintervall,MessageCounter,SendCounter) when SendCounter >= 5 -> io:format("ALL DONE~n").
 														   
 
  
  
  %% Wandelt Sekudnen in Mikrosekunden um.
- seconds_to_useconds(Seconds) ->math:pow(Seconds * 10,6).
+ seconds_to_useconds(Seconds) -> round(Seconds * math:pow(10,6)).
+  seconds_to_mseconds(Seconds) -> round(Seconds * math:pow(10,3)).
  
  %% Calculates the message to send.
  get_message() -> "hallo welt".
