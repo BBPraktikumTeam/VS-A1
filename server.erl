@@ -1,27 +1,27 @@
 -module(server).
 -compile(export_all).
 -import(werkzeug).
--record(state, {clients,message_id,delivery_queue,holdback_queue,time_of_death,clientlifetime,dlqlimit,difftime}).
-
-%%Client -> erhaltene Nachricht
-%Client -> Letze Meldung
-%Zeilennummer -> Nachricht
-%aktuelle Zeilennummer
-%Timeout
-%kommentar
+-record(state, {clients,message_id,delivery_queue,holdback_queue,clientlifetime,dlqlimit,difftime}).
 
 
-loop(S= #state{message_id=Id,delivery_queue=DQ}) ->
+% Client Timeouts prüfen
+
+
+loop(S= #state{message_id = Id}) ->
 	    receive
 		{getmessages,Pid} ->
-		  NewState=getmessages(Pid,S),
+        io:format("getmessage"),
+        NewState = S,
+		%  NewState=getmessages(Pid,S),
 		  loop(NewState);
 		{dropmessage, {Message,Number}} ->
-		  NewState=dropmessage({Message,Number},S),
-		  loop(NewState);
+		 % NewState=dropmessage({Message,Number},S),
+		  io:format("dropmessage"),
+          NewState = S,
+          loop(NewState);
 		{getmsgid,Pid} -> 
-		  io:format("Send Id ~p~n",[Id]), 
-		  Pid ! {Id}, 
+		%  io:format("Send Id ~p~n",[Id]), 
+		  Pid ! Id, 
 		  loop(S#state{message_id=Id+1});
 		Any ->
 		  io:format("Sorry, I don't understand: ~s~n",[Any])
@@ -101,7 +101,7 @@ init() ->
 	register(Servername,self()),
 	{ok, Dlqlimit} = werkzeug:get_config_value(dlqlimit, ConfigListe),
 	{ok, Difftime} = werkzeug:get_config_value(difftime, ConfigListe),
-	loop(#state{clients=orddict:new(),delivery_queue=[{"Nachricht1",1},{"Nachricht2",2}],message_id=1,holdback_queue=[],time_of_death=timestamp()+Lifetime,clientlifetime=Clientlifetime,dlqlimit=Dlqlimit,difftime=Difftime}).
+	loop(#state{clients=orddict:new(),delivery_queue=[{"Nachricht1",1},{"Nachricht2",2}],message_id=1,holdback_queue=[],clientlifetime=Clientlifetime,dlqlimit=Dlqlimit,difftime=Difftime}).
 
 
 start() -> spawn(fun init/0).

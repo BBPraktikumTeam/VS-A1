@@ -2,6 +2,8 @@
 -compile(export_all).
 -import(werkzeug).
 
+-record(state, {servername,startTime,sendeintervall,sendCounter,getAll}).
+
 init() -> 
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
@@ -11,31 +13,46 @@ init() ->
 	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	{ok, Sendeintervall} = werkzeug:get_config_value(sendeintervall, ConfigListe),
 	Hostname = net_adm:localhost(),
-	loop(Servername,now(),Sendeintervall,0,0,false).
+	loop_redakteur(#state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
 
 
 start() -> spawn(fun init/0).
 %% Nachrichten senden, bis Sendcounter >=5
-loop(Servername,StartTime,Sendeintervall,MessageCounter,SendCounter,GetAll) when SendCounter < 5 ->
-																	erlang:send_after(seconds_to_mseconds(Sendeintervall), Servername, write_message({_,Hostname}= inet:gethostname(),MessageCounter)),
-																	werkzeug:logging(("client_1.log"), werkzeug:timeMilliSecond() ),
-																	io:format("Sending ~p ~p Message~n", [SendCounter,Sendeintervall]),
-																	loop(Servername,StartTime,random_intervall(Sendeintervall), MessageCounter + 1, SendCounter + 1,GetAll);
-%% NAchrichten empfangen bis GetAll == true
-loop(Servername,StartTime,Sendeintervall,MessageCounter,SendCounter,GetAll) when SendCounter >= 5, GetAll == false  -> 
-			AllReceived = getmessages(Servername),
-		%%	loop(Servername,StartTime,Sendeintervall,MessageCounter,0,GetAll),
-			io:format("ALL DONE~n").
-																	   
-
- getmessages(Servername) -> 
+loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
+            if  GetAll==true ->
+                    loop_redakteur(S#state{getAll=false});
+                true ->
+                    loop_leser(get_message(S))
+            end.
+			
+loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll})->            
+            if SendCounter >= 5 ->
+                    loop_leser(S#state{sendCounter=1,sendeintervall=random_intervall(Sendeintervall)});
+                true ->
+                    send_message(S),
+                    loop_redakteur(S#state{sendCounter=SendCounter+1})
+            end.
+            
+send_message(S= #state{sendeintervall= Sendeintervall, servername = Servername}) -> 
+            Id = getMsgId(Servername),
+            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond()]),
+            Servername ! {dropmessage,{Message,Id}},
+            timer:sleep(seconds_to_mseconds(Sendeintervall)),
+            werkzeug:logging("client_1.log", Message).
+            
+            
+ getMsgId(Servername) -> 
+    Servername ! {getmsgid,self()},
+    receive Id -> Id
+    end.
+                                                                       
+ get_message(S=#state{servername=Servername}) -> 
 			io:format("~s", [Servername]),
 			Servername ! {getmessages, self()},
-            receive {Nachrichteninhalt,Getall} -> 
-				io:format("Nachricht vom Server: ~s", [Nachrichteninhalt]),
-				werkzeug:logging("client_1.log", Nachrichteninhalt ++ "Empfangszeit Client: " ++ werkzeug:timeMilliSecond() ),
-				Getall
-				end.
+            receive {Nachrichteninhalt,GetAll} -> 
+				werkzeug:logging("client_1.log", Nachrichteninhalt ++ "Empfangszeit Client: " ++ werkzeug:timeMilliSecond() ++ "~n" ),
+				S#state{getAll=GetAll}
+            end.
 
  
  %% Wandelt Sekudnen in Mikrosekunden um.
