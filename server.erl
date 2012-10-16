@@ -8,16 +8,18 @@
 
 
 loop(S= #state{message_id = Id}) ->
+% updating clients bevore every loop!
+		State = test_client_timeout(S), 			
 	    receive
 		{getmessages,Pid} ->
         io:format("getmessage"),
-        NewState = S,
-		%  NewState=getmessages(Pid,S),
+        NewState = State,
+		%  NewState=getmessages(Pid,State),
 		  loop(NewState);
 		{dropmessage, {Message,Number}} ->
-		 % NewState=dropmessage({Message,Number},S),
+		 % NewState=dropmessage({Message,Number},State),
 		  io:format("dropmessage"),
-          NewState = S,
+          NewState = State,
           loop(NewState);
 		{getmsgid,Pid} -> 
 		%  io:format("Send Id ~p~n",[Id]), 
@@ -28,6 +30,11 @@ loop(S= #state{message_id = Id}) ->
 	    end.
 
    
+   
+ test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
+	NewClients = dict:filter((fun(_,{_,T1}) -> (T1 - timestamp()) < Clientlifetime end),Clients),
+	{S#state{clients = NewClients}.
+ 
 
 getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) -> 
   MsgId=getLastMsgId(Pid,S),
