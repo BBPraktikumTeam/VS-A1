@@ -42,10 +42,10 @@ loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sen
             
 send_message(S= #state{clientnr=Clientnr,sendeintervall= Sendeintervall, servername = Servername}) -> 
             Id = getMsgId(Servername),
-            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond(),"~n"]),
+            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond()]),
             Servername ! {dropmessage,{Message,Id}},
             timer:sleep(seconds_to_mseconds(Sendeintervall)),
-            werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Message).
+            werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Message++"~n").
             
             
  getMsgId(Servername) -> 

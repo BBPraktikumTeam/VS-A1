@@ -28,23 +28,30 @@ loop(S= #state{message_id = Id}) ->
 	    end.
 
 update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
-	{_,LastDeliveryID} = lists:last(DQ),
-	{_,FirstHoldbackID} = lists:first(HQ),
+	if DQ==[] -> [{_,TempLastDeliveryID}|_] = HQ,LastDeliveryID=TempLastDeliveryID-1;
+	   true ->{_,LastDeliveryID} = lists:last(DQ)
+	end,
+	[{_,FirstHoldbackID}|_] = HQ,
 	if LastDeliveryID + 1 == FirstHoldbackID ->
 	      FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ));
 	   true -> FirstBlob=[]
 	end,
 	TempDQ=DQ++FirstBlob,
-	NewDQ=lists:sublist(TempDQ,length(TempDQ)-DQLimit+1,length(TempDQ)),
+	NewDQ=normalize_list(TempDQ,DQLimit),
 	NewHQ=lists:sublist(HQ,length(FirstBlob)+1,length(HQ)),
 	check_for_gaps(S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}).
 
+normalize_list(List,Limit) when length(List) =< Limit -> List;
+normalize_list(List,Limit) when length(List) > Limit -> lists:sublist(List,length(List)-Limit+1,length(List)).
+
+
+check_for_gaps(S=#state{holdback_queue = HQ}) when HQ==[] -> S;
 check_for_gaps(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
-	LengthHQ=lists:length(HQ),
+	LengthHQ=length(HQ),
 	HalfOfDQLimit=DQLimit/2,
 	if 	LengthHQ > HalfOfDQLimit ->
 			{_,LastDeliveryID} = lists:last(DQ),
-			{_,FirstHoldbackID} = lists:first(HQ),
+			[{_,FirstHoldbackID}|_] = HQ,
 			if 	LastDeliveryID + 1 < FirstHoldbackID ->
 					ErrorMessage=lists:concat(["***Fehlertextzeile fuer die Nachrichtennummern ",LastDeliveryID + 1,FirstHoldbackID -1, " um ", werkzeug:timeMilliSecond(),"|~n"]),	
 					S#state{delivery_queue=DQ++[{ErrorMessage,FirstHoldbackID-1}]};
@@ -89,14 +96,16 @@ getLastMsgId(Pid,#state{clients = Clients}) ->
       {ok,{MsgId,_}} -> MsgId
    end.
 
-dropmessage({Message,Number},S=#state{holdback_queue=HQ}) ->
+
+dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] -> S#state{holdback_queue=[{Message,Number}]};
+dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ=/=[] ->
   % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
   % NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
   NewMessage = lists:concat([Message, " Empfangszeit: ", werkzeug:timeMilliSecond(), " "]),
   %% Sorted Insert in the List
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
   werkzeug:logging("NServer.log",NewMessage),
-  loop(S#state{holdback_queue = NewHQ}).
+  S#state{holdback_queue = NewHQ}.
         
 
 getBlob({Message,Id},[]) -> [{Message,Id}];
