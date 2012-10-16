@@ -12,15 +12,13 @@ loop(S= #state{message_id = Id}) ->
 		State = test_client_timeout(S), 			
 	    receive
 		{getmessages,Pid} ->
-        % io:format("getmessage"),
-        % NewState = State,
+        	  io:format("getmessage~n"),
 		  NewState=getmessages(Pid,State),
-		  loop(NewState);
+		  loop(test_client_timeout(NewState));
 		{dropmessage, {Message,Number}} ->
 		  NewState=dropmessage({Message,Number},State),
-		 % io:format("dropmessage"),
-         % NewState = State,
-          loop(NewState);
+		  io:format("dropmessage~n"),
+          	  loop(update_queues(NewState));
 		{getmsgid,Pid} -> 
 		  io:format("Send Id: ~p to:~p ~n",[Id,Pid]), 
 		  Pid ! Id, 
@@ -29,9 +27,34 @@ loop(S= #state{message_id = Id}) ->
 		  io:format("Sorry, I don't understand: ~s~n",[Any])
 	    end.
 
+update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
+	{_,LastDeliveryID} = lists:last(DQ),
+	{_,FirstHoldbackID} = lists:first(HQ),
+	if LastDeliveryID + 1 == FirstHoldbackID ->
+	      FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ));
+	   true -> FirstBlob=[]
+	end,
+	TempDQ=DQ++FirstBlob,
+	NewDQ=lists:sublist(TempDQ,length(TempDQ)-DQLimit+1,length(TempDQ)),
+	NewHQ=lists:sublist(HQ,length(FirstBlob)+1,length(HQ)),
+	check_for_gaps(S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}).
+
+check_for_gaps(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
+	LengthHQ=lists:length(HQ),
+	HalfOfDQLimit=DQLimit/2,
+	if 	LengthHQ > HalfOfDQLimit ->
+			{_,LastDeliveryID} = lists:last(DQ),
+			{_,FirstHoldbackID} = lists:first(HQ),
+			if 	LastDeliveryID + 1 < FirstHoldbackID ->
+					ErrorMessage=lists:concat(["***Fehlertextzeile fuer die Nachrichtennummern ",LastDeliveryID + 1,FirstHoldbackID -1, " um ", werkzeug:timeMilliSecond(),"|~n"]),	
+					S#state{delivery_queue=DQ++[{ErrorMessage,FirstHoldbackID-1}]};
+				true -> S
+			end;
+		true -> S
+	end.
+  
    
-   
- test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
+test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
 	NewClients = orddict:filter((fun(_,{_,T1}) -> (T1 - timestamp()) < Clientlifetime end),Clients),
 	S#state{clients = NewClients}.
  
@@ -57,7 +80,7 @@ appendTimeStamp(Message,Type) ->
   Message++" "++Type++": "++werkzeug:timeMilliSecond().
 
 
-getLastMsgId(Pid,S=#state{clients = Clients}) ->
+getLastMsgId(Pid,#state{clients = Clients}) ->
     %prüfen ob Client bereits bekannt:
   case orddict:find(Pid,Clients) of
       error ->
@@ -74,20 +97,6 @@ dropmessage({Message,Number},S=#state{holdback_queue=HQ}) ->
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
   werkzeug:logging("NServer.log",NewMessage),
   loop(S#state{holdback_queue = NewHQ}).
-  % update_queues(S#state{holdback_queue=NewHQ}).
-  
-  
-
-%% update_queues(S = #state{messages=Messages,delivery_queue = DQ, holdback_queue = HQ}, {Message,Number}}) -> 
-%%    {_,LastDeliveryID} = lists:last(DQ),
-%%    {_,FirstHoldbackID} = lists:first(HQ),
-%%    if LastDeliverID + 1 = FirstHoldbackID ->
-%%            FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ));
-%%        true -> FirstBlob=[]
-%%    end,
-%%    NewDQ=DQ++FirstBlob,
-%%   lists:sublist(List,length(List)-3+1,length(List)).
-    %% IN WORK!!!%%
         
 
 getBlob({Message,Id},[]) -> [{Message,Id}];
@@ -97,7 +106,7 @@ getBlob(_,Accu) -> Accu.
 
 timestamp() -> 
   {Mega, Secs, _} = now(),
-  Timestamp = Mega*1000000 + Secs.
+  Mega*1000000 + Secs.
 
 
 init() -> 
@@ -110,7 +119,7 @@ init() ->
 	register(Servername,self()),
 	{ok, Dlqlimit} = werkzeug:get_config_value(dlqlimit, ConfigListe),
 	{ok, Difftime} = werkzeug:get_config_value(difftime, ConfigListe),
-	loop(#state{clients=orddict:new(),delivery_queue=[{"Nachricht1",1},{"Nachricht2",2}],message_id=1,holdback_queue=[],clientlifetime=Clientlifetime,dlqlimit=Dlqlimit,difftime=Difftime}).
+	loop(#state{clients=orddict:new(),delivery_queue=[],message_id=1,holdback_queue=[],clientlifetime=Clientlifetime,dlqlimit=Dlqlimit,difftime=Difftime}).
 
 
 start() -> spawn(fun init/0).
