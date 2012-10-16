@@ -12,17 +12,17 @@ loop(S= #state{message_id = Id}) ->
 		State = test_client_timeout(S), 			
 	    receive
 		{getmessages,Pid} ->
-        io:format("getmessage"),
-        NewState = State,
-		%  NewState=getmessages(Pid,State),
+        % io:format("getmessage"),
+        % NewState = State,
+		  NewState=getmessages(Pid,State),
 		  loop(NewState);
 		{dropmessage, {Message,Number}} ->
-		 % NewState=dropmessage({Message,Number},State),
-		  io:format("dropmessage"),
-          NewState = State,
+		  NewState=dropmessage({Message,Number},State),
+		 % io:format("dropmessage"),
+         % NewState = State,
           loop(NewState);
 		{getmsgid,Pid} -> 
-		%  io:format("Send Id ~p~n",[Id]), 
+		  io:format("Send Id: ~p to:~p ~n",[Id,Pid]), 
 		  Pid ! Id, 
 		  loop(S#state{message_id=Id+1});
 		Any ->
@@ -32,8 +32,8 @@ loop(S= #state{message_id = Id}) ->
    
    
  test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
-	NewClients = dict:filter((fun(_,{_,T1}) -> (T1 - timestamp()) < Clientlifetime end),Clients),
-	{S#state{clients = NewClients}.
+	NewClients = orddict:filter((fun(_,{_,T1}) -> (T1 - timestamp()) < Clientlifetime end),Clients),
+	S#state{clients = NewClients}.
  
 
 getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) -> 
@@ -68,11 +68,13 @@ getLastMsgId(Pid,S=#state{clients = Clients}) ->
 
 dropmessage({Message,Number},S=#state{holdback_queue=HQ}) ->
   % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
-  NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
+  % NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
+  NewMessage = lists:concat([Message, " Empfangszeit: ", werkzeug:timeMilliSecond(), " "]),
   %% Sorted Insert in the List
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
-  werkzeug:logging("NServer.log",NewMessage).
-%%  update_queues(S#state{holdback_queue=NewHQ}).
+  werkzeug:logging("NServer.log",NewMessage),
+  loop(S#state{holdback_queue = NewHQ}).
+  % update_queues(S#state{holdback_queue=NewHQ}).
   
   
 

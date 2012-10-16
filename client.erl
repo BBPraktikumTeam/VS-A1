@@ -19,6 +19,7 @@ init() ->
 start() -> spawn(fun init/0).
 %% Nachrichten senden, bis Sendcounter >=5
 loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
+            io:format("Client is now reader"),
             if  GetAll==true ->
                     loop_redakteur(S#state{getAll=false});
                 true ->
@@ -35,7 +36,7 @@ loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sen
             
 send_message(S= #state{sendeintervall= Sendeintervall, servername = Servername}) -> 
             Id = getMsgId(Servername),
-            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond()]),
+            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond(),"~n"]),
             Servername ! {dropmessage,{Message,Id}},
             timer:sleep(seconds_to_mseconds(Sendeintervall)),
             werkzeug:logging("client_1.log", Message).
@@ -43,7 +44,9 @@ send_message(S= #state{sendeintervall= Sendeintervall, servername = Servername})
             
  getMsgId(Servername) -> 
     Servername ! {getmsgid,self()},
-    receive Id -> Id
+    receive Id -> Id,
+        io:format("Received ID: ~p~n" , [Id]),
+        Id
     end.
                                                                        
  get_message(S=#state{servername=Servername}) -> 
