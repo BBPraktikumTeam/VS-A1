@@ -2,22 +2,29 @@
 -compile(export_all).
 -import(werkzeug).
 
--record(state, {servername,startTime,sendeintervall,sendCounter,getAll}).
+-record(state, {clientnr,servername,startTime,sendeintervall,sendCounter,getAll}).
 
-init() -> 
-	{ok, ConfigListe} = file:consult("client.cfg"),
-	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
+init(Number,ConfigListe) -> 
+
 	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
 	ClientPid=self(),
 	spawn(fun()->timer:kill_after(Lifetime*1000,ClientPid) end),
 	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	{ok, Sendeintervall} = werkzeug:get_config_value(sendeintervall, ConfigListe),
 	Hostname = net_adm:localhost(),
-	loop_redakteur(#state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
+	loop_redakteur(#state{clientnr=Number,servername=Servername,sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
 
 
-start() -> spawn(fun init/0).
-%% Nachrichten senden, bis Sendcounter >=5
+
+start() ->
+	{ok, ConfigListe} = file:consult("client.cfg"),
+	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
+	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe) end) end,lists:seq(1,ClientsNr)).
+
+startOne() -> 
+	{ok, ConfigListe} = file:consult("client.cfg"),
+	spawn(fun()-> init(1,ConfigListe) end).
+
 loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
             io:format("Client is now reader"),
             if  GetAll==true ->
