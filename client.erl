@@ -5,7 +5,6 @@
 -record(state, {clientnr,servername,startTime,sendeintervall,sendCounter,getAll}).
 
 init(Number,ConfigListe) -> 
-
 	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
 	ClientPid=self(),
 	spawn(fun()->timer:kill_after(Lifetime*1000,ClientPid) end),
@@ -41,12 +40,12 @@ loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sen
                     loop_redakteur(S#state{sendCounter=SendCounter+1})
             end.
             
-send_message(S= #state{sendeintervall= Sendeintervall, servername = Servername}) -> 
+send_message(S= #state{clientnr=Clientnr,sendeintervall= Sendeintervall, servername = Servername}) -> 
             Id = getMsgId(Servername),
             Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond(),"~n"]),
             Servername ! {dropmessage,{Message,Id}},
             timer:sleep(seconds_to_mseconds(Sendeintervall)),
-            werkzeug:logging("client_1.log", Message).
+            werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Message).
             
             
  getMsgId(Servername) -> 
@@ -56,11 +55,11 @@ send_message(S= #state{sendeintervall= Sendeintervall, servername = Servername})
         Id
     end.
                                                                        
- get_message(S=#state{servername=Servername}) -> 
+ get_message(S=#state{clientnr=Clientnr,servername=Servername}) -> 
 			io:format("~s", [Servername]),
 			Servername ! {getmessages, self()},
             receive {Nachrichteninhalt,GetAll} -> 
-				werkzeug:logging("client_1.log", Nachrichteninhalt ++ "Empfangszeit Client: " ++ werkzeug:timeMilliSecond() ++ "~n" ),
+				werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Nachrichteninhalt ++ "Empfangszeit Client: " ++ werkzeug:timeMilliSecond() ++ "~n" ),
 				S#state{getAll=GetAll}
             end.
 
