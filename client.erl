@@ -4,28 +4,37 @@
 
 -record(state, {clientnr,servername,startTime,sendeintervall,sendCounter,getAll}).
 
-init(Number,ConfigListe) -> 
+init(Number,ConfigListe,Node) -> 
 	{ok, Lifetime} = werkzeug:get_config_value(lifetime, ConfigListe),
 	ClientPid=self(),
 	spawn(fun()->timer:kill_after(Lifetime*1000,ClientPid) end),
 	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	{ok, Sendeintervall} = werkzeug:get_config_value(sendeintervall, ConfigListe),
 	Hostname = net_adm:localhost(),
-	loop_redakteur(#state{clientnr=Number,servername=Servername,sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
+	loop_redakteur(#state{clientnr=Number,servername={Servername,Node},sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
 
 
 
 start() ->
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
-	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe) end) end,lists:seq(1,ClientsNr)).
+	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,node()) end) end,lists:seq(1,ClientsNr)).
 
 startOne() -> 
 	{ok, ConfigListe} = file:consult("client.cfg"),
-	spawn(fun()-> init(1,ConfigListe) end).
+	spawn(fun()-> init(1,ConfigListe,node()) end).
 
+start(Node) ->
+	{ok, ConfigListe} = file:consult("client.cfg"),
+	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
+	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,Node) end) end,lists:seq(1,ClientsNr)).
+
+startOne(Node) -> 
+	{ok, ConfigListe} = file:consult("client.cfg"),
+	spawn(fun()-> init(1,ConfigListe,Node) end).
+    
 loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
-            io:format("Client is now reader"),
+            
             if  GetAll==true ->
                     loop_redakteur(S#state{getAll=false});
                 true ->
@@ -33,43 +42,50 @@ loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCou
             end.
 			
 loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll})->            
-            if SendCounter >= 5 ->
+            if SendCounter > 5 ->
                     loop_leser(S#state{sendCounter=1,sendeintervall=random_intervall(Sendeintervall)});
                 true ->
                     send_message(S),
                     loop_redakteur(S#state{sendCounter=SendCounter+1})
             end.
             
-send_message(S= #state{clientnr=Clientnr,sendeintervall= Sendeintervall, servername = Servername}) -> 
+send_message(S= #state{clientnr=ClientNr,sendeintervall= Sendeintervall, servername = Servername}) -> 
             Id = getMsgId(Servername),
-            Message = lists:concat([Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond()]),
+            Message = lists:concat([net_adm:localhost(),":1-10: ",Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond(),"|"]),
             Servername ! {dropmessage,{Message,Id}},
             timer:sleep(seconds_to_mseconds(Sendeintervall)),
-            werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Message++"~n").
+            werkzeug:logging( log_file_name(ClientNr), lists:concat([Message,io_lib:nl()])).
             
             
  getMsgId(Servername) -> 
     Servername ! {getmsgid,self()},
-    receive Id -> Id,
-        io:format("Received ID: ~p~n" , [Id]),
-        Id
+    receive Id -> Id
     end.
                                                                        
- get_message(S=#state{clientnr=Clientnr,servername=Servername}) -> 
-			io:format("~s", [Servername]),
+ get_message(S=#state{clientnr=ClientNr,servername=Servername}) -> 
 			Servername ! {getmessages, self()},
             receive {Nachrichteninhalt,GetAll} -> 
-				werkzeug:logging(lists:concat(["client_",Clientnr,".log"]), Nachrichteninhalt ++ "Empfangszeit Client: " ++ werkzeug:timeMilliSecond() ++ "~n" ),
+				werkzeug:logging(log_file_name(ClientNr), lists:concat([Nachrichteninhalt,"Empfangszeit Client: ",werkzeug:timeMilliSecond(),io_lib:nl()] )),
 				S#state{getAll=GetAll}
             end.
 
+ log_file_name(ClientNr) -> lists:concat(["client_",ClientNr,net_adm:localhost(),".log"]).
  
- %% Wandelt Sekudnen in Mikrosekunden um.
- seconds_to_useconds(Seconds) -> round(Seconds * math:pow(10,6)).
+ 
+ %% Wandelt Sekudnen in Millisekunden um.
   seconds_to_mseconds(Seconds) -> round(Seconds * math:pow(10,3)).
- 
- %% Calculates the message to send.
- write_message(Hostname,MessageCounter) -> "testmessage".
- 
+
  %% Randomizes the message intervall +,- min(1Sek), but not below 1Sek.
- random_intervall(Sendeintervall) -> Sendeintervall.
+ random_intervall(Sendeintervall) -> 
+    Intervall = Sendeintervall + new_delta(Sendeintervall),
+    if Intervall < 1 -> 1;
+        true -> Intervall
+    end.
+
+new_delta(Sendeintervall) ->
+    Delta = (random:uniform() - 0.5) * Sendeintervall,
+    if (Delta < 0) and (Delta > -1) -> -1;
+       (Delta >= 0) and (Delta < 1) -> 1;
+       true -> Delta
+    end.
+ 

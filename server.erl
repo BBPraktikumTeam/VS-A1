@@ -9,22 +9,20 @@
 
 loop(S= #state{message_id = Id}) ->
 % updating clients bevore every loop!
-		State = test_client_timeout(S), 			
+ 			
 	    receive
 		{getmessages,Pid} ->
-        	  io:format("getmessage~n"),
+		  State = test_client_timeout(S),
 		  NewState=getmessages(Pid,State),
-		  loop(test_client_timeout(NewState));
+		  loop(NewState);
 		{dropmessage, {Message,Number}} ->
-		  NewState=dropmessage({Message,Number},State),
-		  io:format("dropmessage~n"),
-          	  loop(update_queues(NewState));
-		{getmsgid,Pid} -> 
-		  io:format("Send Id: ~p to:~p ~n",[Id,Pid]), 
+		  NewState=dropmessage({Message,Number},S),
+          loop(update_queues(NewState));
+		{getmsgid,Pid} ->
 		  Pid ! Id, 
 		  loop(S#state{message_id=Id+1});
-		Any ->
-		  io:format("Sorry, I don't understand: ~s~n",[Any])
+		_ ->
+		  werkzeug:logging("NServer.log","Sorry, I don't understand~n")
 	    end.
 
 update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
@@ -62,7 +60,7 @@ check_for_gaps(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimi
   
    
 test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
-	NewClients = orddict:filter((fun(_,{_,T1}) -> (T1 - timestamp()) < Clientlifetime end),Clients),
+	NewClients = orddict:filter(fun(_,{_,Timestamp}) -> (timestamp() - Timestamp) < Clientlifetime end,Clients),
 	S#state{clients = NewClients}.
  
 
@@ -79,32 +77,32 @@ getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) ->
       Getall = false
    end,
    Pid ! {X = appendTimeStamp(Message,"Sendezeit"),Getall},
-   werkzeug:logging("NServer.log", X),
+   werkzeug:logging("NServer.log", lists:concat([X,io_lib:nl()])),
    S#state{clients=orddict:store(Pid,{NewMsgId,timestamp()}, Clients)}.
 
 
 appendTimeStamp(Message,Type) ->
-  Message++" "++Type++": "++werkzeug:timeMilliSecond().
+  lists:concat([Message," ",Type,": ",werkzeug:timeMilliSecond(),"|"]).
 
 
 getLastMsgId(Pid,#state{clients = Clients}) ->
     %prüfen ob Client bereits bekannt:
   case orddict:find(Pid,Clients) of
       error ->
-        orddict:append(Pid,{0,timestamp()}, Clients),
+        orddict:store(Pid,{0,timestamp()}, Clients),
         0;
       {ok,{MsgId,_}} -> MsgId
    end.
 
 
-dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] -> S#state{holdback_queue=[{Message,Number}]};
+dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] -> S#state{holdback_queue=[{appendTimeStamp(Message, "Empfangszeit"),Number}]};
 dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ=/=[] ->
   % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
   % NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
   NewMessage = lists:concat([Message, " Empfangszeit: ", werkzeug:timeMilliSecond(), " "]),
   %% Sorted Insert in the List
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
-  werkzeug:logging("NServer.log",NewMessage),
+  werkzeug:logging("NServer.log",lists:concat([NewMessage,io_lib:nl()])),
   S#state{holdback_queue = NewHQ}.
         
 
