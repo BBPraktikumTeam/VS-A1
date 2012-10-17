@@ -18,20 +18,20 @@ init(Number,ConfigListe,Node) ->
 start() ->
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
-	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,node()) end) end,lists:seq(1,ClientsNr)).
+	startX(ClientsNr).
 
-startOne() -> 
+startX(Nr) -> 
 	{ok, ConfigListe} = file:consult("client.cfg"),
-	spawn(fun()-> init(1,ConfigListe,node()) end).
+	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,node()) end) end,lists:seq(1,Nr)).
 
 start(Node) ->
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	{ok, ClientsNr} = werkzeug:get_config_value(clients, ConfigListe),
-	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,Node) end) end,lists:seq(1,ClientsNr)).
+	startX(ClientsNr,Node).
 
-startOne(Node) -> 
+startX(Nr,Node) -> 
 	{ok, ConfigListe} = file:consult("client.cfg"),
-	spawn(fun()-> init(1,ConfigListe,Node) end).
+	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,Node) end) end,lists:seq(1,Nr)).
     
 loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
             

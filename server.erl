@@ -77,7 +77,7 @@ getmessages(Pid,S=#state{delivery_queue=DQ, clients = Clients}) ->
       Getall = false
    end,
    Pid ! {X = appendTimeStamp(Message,"Sendezeit"),Getall},
-   werkzeug:logging("NServer.log", lists:concat([X,io_lib:nl()])),
+   werkzeug:logging("NServer.log", lists:concat([X,"-getmessages",io_lib:nl()])),
    S#state{clients=orddict:store(Pid,{NewMsgId,timestamp()}, Clients)}.
 
 
@@ -95,14 +95,17 @@ getLastMsgId(Pid,#state{clients = Clients}) ->
    end.
 
 
-dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] -> S#state{holdback_queue=[{appendTimeStamp(Message, "Empfangszeit"),Number}]};
+dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] -> 
+    NewMessage=appendTimeStamp(Message, "Empfangszeit"),
+    werkzeug:logging("NServer.log",lists:concat([NewMessage,"-dropmessage",io_lib:nl()])),
+    S#state{holdback_queue=[{NewMessage,Number}]};
 dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ=/=[] ->
   % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
   % NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
   NewMessage = lists:concat([Message, " Empfangszeit: ", werkzeug:timeMilliSecond(), " "]),
   %% Sorted Insert in the List
   NewHQ=lists:takewhile(fun({_,X})-> X< Number end,HQ)++[{NewMessage,Number}]++lists:dropwhile(fun({_,X})-> X<Number end,HQ),
-  werkzeug:logging("NServer.log",lists:concat([NewMessage,io_lib:nl()])),
+  werkzeug:logging("NServer.log",lists:concat([NewMessage,"-dropmessage",io_lib:nl()])),
   S#state{holdback_queue = NewHQ}.
         
 
