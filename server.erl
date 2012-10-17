@@ -23,7 +23,7 @@ loop(S= #state{message_id = Id}) ->
 		  NewState=S
 	    end,
 	    loop(NewState).
-
+update_queues(S=#state{holdback_queue =HQ}) when HQ==[]-> S;
 update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
 	if DQ==[] -> [{_,TempLastDeliveryID}|_] = HQ,LastDeliveryID=TempLastDeliveryID-1;
 	   true ->{_,LastDeliveryID} = lists:last(DQ)
