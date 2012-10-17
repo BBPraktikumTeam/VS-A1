@@ -7,23 +7,22 @@
 % Client Timeouts prüfen
 
 
-loop(S= #state{message_id = Id}) ->
-% updating clients bevore every loop!
- 			
+loop(S= #state{message_id = Id}) ->		
 	    receive
 		{getmessages,Pid} ->
 		  State = test_client_timeout(S),
-		  NewState=getmessages(Pid,State),
-		  loop(NewState);
+		  NewState=getmessages(Pid,State);
 		{dropmessage, {Message,Number}} ->
-		  NewState=dropmessage({Message,Number},S),
-          loop(update_queues(NewState));
+		  TempState=dropmessage({Message,Number},S),
+		  NewState=update_queues(check_for_gaps(TempState));
 		{getmsgid,Pid} ->
 		  Pid ! Id, 
-		  loop(S#state{message_id=Id+1});
+		  NewState=S#state{message_id=Id+1};
 		_ ->
-		  werkzeug:logging("NServer.log","Sorry, I don't understand~n")
-	    end.
+		  werkzeug:logging("NServer.log","Sorry, I don't understand~n"),
+		  NewState=S
+	    end,
+	    loop(NewState).
 
 update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
 	if DQ==[] -> [{_,TempLastDeliveryID}|_] = HQ,LastDeliveryID=TempLastDeliveryID-1;
@@ -37,7 +36,7 @@ update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit
 	TempDQ=DQ++FirstBlob,
 	NewDQ=normalize_list(TempDQ,DQLimit),
 	NewHQ=lists:sublist(HQ,length(FirstBlob)+1,length(HQ)),
-	check_for_gaps(S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}).
+	S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}.
 
 normalize_list(List,Limit) when length(List) =< Limit -> List;
 normalize_list(List,Limit) when length(List) > Limit -> lists:sublist(List,length(List)-Limit+1,length(List)).

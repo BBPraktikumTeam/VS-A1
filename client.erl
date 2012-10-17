@@ -10,7 +10,6 @@ init(Number,ConfigListe,Node) ->
 	spawn(fun()->timer:kill_after(Lifetime*1000,ClientPid) end),
 	{ok, Servername} = werkzeug:get_config_value(servername, ConfigListe),
 	{ok, Sendeintervall} = werkzeug:get_config_value(sendeintervall, ConfigListe),
-	Hostname = net_adm:localhost(),
 	loop_redakteur(#state{clientnr=Number,servername={Servername,Node},sendeintervall=Sendeintervall,sendCounter=1,getAll=false}).
 
 
@@ -33,7 +32,7 @@ startX(Nr,Node) ->
 	{ok, ConfigListe} = file:consult("client.cfg"),
 	lists:map(fun(X)->spawn(fun()->init(X,ConfigListe,Node) end) end,lists:seq(1,Nr)).
     
-loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll}) ->
+loop_leser(S= #state{getAll=GetAll}) ->
             
             if  GetAll==true ->
                     loop_redakteur(S#state{getAll=false});
@@ -41,7 +40,7 @@ loop_leser(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCou
                     loop_leser(get_message(S))
             end.
 			
-loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sendCounter=SendCounter,getAll=GetAll})->            
+loop_redakteur(S= #state{sendeintervall=Sendeintervall,sendCounter=SendCounter})->            
             if SendCounter > 5 ->
                     loop_leser(S#state{sendCounter=1,sendeintervall=random_intervall(Sendeintervall)});
                 true ->
@@ -49,7 +48,7 @@ loop_redakteur(S= #state{servername=Servername,sendeintervall=Sendeintervall,sen
                     loop_redakteur(S#state{sendCounter=SendCounter+1})
             end.
             
-send_message(S= #state{clientnr=ClientNr,sendeintervall= Sendeintervall, servername = Servername}) -> 
+send_message(#state{clientnr=ClientNr,sendeintervall= Sendeintervall, servername = Servername}) -> 
             Id = getMsgId(Servername),
             Message = lists:concat([net_adm:localhost(),":1-10: ",Id,"te Nachricht Sendezeit: ", werkzeug:timeMilliSecond(),"|"]),
             Servername ! {dropmessage,{Message,Id}},
