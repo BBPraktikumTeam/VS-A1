@@ -1,7 +1,7 @@
 -module(server).
 -compile(export_all).
 -import(werkzeug).
--record(state, {clients,message_id,delivery_queue,holdback_queue,clientlifetime,dlqlimit,difftime}).
+-include("server.hrl").
 
 
 % Client Timeouts prüfen

@@ -1,0 +1,1 @@
+-record(state, {clients,message_id,delivery_queue,holdback_queue,clientlifetime,dlqlimit,difftime}).
