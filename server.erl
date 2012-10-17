@@ -43,20 +43,22 @@ normalize_list(List,Limit) when length(List) > Limit -> lists:sublist(List,lengt
 
 
 check_for_gaps(S=#state{holdback_queue = HQ}) when HQ==[] -> S;
+check_for_gaps(S=#state{delivery_queue = DQ}) when DQ==[] -> S;
 check_for_gaps(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit})->
-	LengthHQ=length(HQ),
-	HalfOfDQLimit=DQLimit/2,
-	if 	LengthHQ > HalfOfDQLimit ->
+	CriteriaMatched=is_splitting_criteria(HQ,DQLimit),
+         if CriteriaMatched ->
 			{_,LastDeliveryID} = lists:last(DQ),
 			[{_,FirstHoldbackID}|_] = HQ,
 			if 	LastDeliveryID + 1 < FirstHoldbackID ->
-					ErrorMessage=lists:concat(["***Fehlertextzeile fuer die Nachrichtennummern ",LastDeliveryID + 1,FirstHoldbackID -1, " um ", werkzeug:timeMilliSecond(),"|~n"]),	
+					ErrorMessage=lists:concat(["***Fehlertextzeile fuer die Nachrichtennummern ",LastDeliveryID + 1," bis ",FirstHoldbackID -1, " um ", werkzeug:timeMilliSecond(),"|~n"]),	
 					S#state{delivery_queue=DQ++[{ErrorMessage,FirstHoldbackID-1}]};
 				true -> S
 			end;
 		true -> S
 	end.
-  
+
+is_splitting_criteria(List,Limit)->
+    length(List)> (Limit/2).
    
 test_client_timeout(S = #state{clients = Clients, clientlifetime = Clientlifetime}) ->
 	NewClients = orddict:filter(fun(_,{_,Timestamp}) -> (timestamp() - Timestamp) < Clientlifetime end,Clients),
