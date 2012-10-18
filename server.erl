@@ -14,7 +14,7 @@ loop(S= #state{message_id = Id}) ->
 		  NewState=getmessages(Pid,State);
 		{dropmessage, {Message,Number}} ->
 		  TempState=dropmessage({Message,Number},S),
-		  NewState=update_queues(check_for_gaps(TempState));
+		  NewState=check_for_gaps(update_queues(TempState));
 		{getmsgid,Pid} ->
 		  Pid ! Id, 
 		  NewState=S#state{message_id=Id+1};
@@ -42,7 +42,7 @@ update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit
 	TempDQ=DQ++FirstBlob,
 	NewDQ=normalize_list(TempDQ,DQLimit),
 	NewHQ2=lists:sublist(NewHQ,length(FirstBlob)+1,length(NewHQ)),
-	S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}.
+	S#state{delivery_queue=NewDQ,holdback_queue=NewHQ2}.
 
 normalize_list(List,Limit) when length(List) =< Limit -> List;
 normalize_list(List,Limit) when length(List) > Limit -> lists:sublist(List,length(List)-Limit+1,length(List)).
