@@ -4,7 +4,7 @@
 -include("server.hrl").
 
 
-% Client Timeouts prüfen
+% Client Timeouts prï¿½fen
 
 
 loop(S= #state{message_id = Id}) ->		
@@ -29,13 +29,19 @@ update_queues(S=#state{delivery_queue = DQ, holdback_queue = HQ,dlqlimit=DQLimit
 	   true ->{_,LastDeliveryID} = lists:last(DQ)
 	end,
 	[{_,FirstHoldbackID}|_] = HQ,
-	if LastDeliveryID + 1 == FirstHoldbackID ->
-	      FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ));
-	   true -> FirstBlob=[]
+	if  FirstHoldbackID =< LastDeliveryID -> 
+		FirstBlob=[],
+		[_|NewHQ]=HQ;
+	    LastDeliveryID + 1 == FirstHoldbackID ->
+	      FirstBlob=lists:reverse(lists:foldl(fun getBlob/2,[],HQ)),
+	      NewHQ=HQ;
+	   true -> 
+	      FirstBlob=[],
+              NewHQ=HQ
 	end,
 	TempDQ=DQ++FirstBlob,
 	NewDQ=normalize_list(TempDQ,DQLimit),
-	NewHQ=lists:sublist(HQ,length(FirstBlob)+1,length(HQ)),
+	NewHQ2=lists:sublist(NewHQ,length(FirstBlob)+1,length(NewHQ)),
 	S#state{delivery_queue=NewDQ,holdback_queue=NewHQ}.
 
 normalize_list(List,Limit) when length(List) =< Limit -> List;
@@ -87,7 +93,7 @@ appendTimeStamp(Message,Type) ->
 
 
 getLastMsgId(Pid,#state{clients = Clients}) ->
-    %prüfen ob Client bereits bekannt:
+    %prï¿½fen ob Client bereits bekannt:
   case orddict:find(Pid,Clients) of
       error ->
         orddict:store(Pid,{0,timestamp()}, Clients),
@@ -101,7 +107,7 @@ dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ==[] ->
     werkzeug:logging("NServer.log",lists:concat([NewMessage,"-dropmessage",io_lib:nl()])),
     S#state{holdback_queue=[{NewMessage,Number}]};
 dropmessage({Message,Number},S=#state{holdback_queue=HQ}) when HQ=/=[] ->
-  % hier könnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie überschrieben
+  % hier kï¿½nnte ein Fehler geschmissen werden, wenn schon eine Nachricht mit der ID vorhanden ist, momentan wird sie ï¿½berschrieben
   % NewMessage=Message++"Empfangszeit: "++werkzeug:timeMilliSecond(),
   NewMessage = lists:concat([Message, " Empfangszeit: ", werkzeug:timeMilliSecond(), " "]),
   %% Sorted Insert in the List
